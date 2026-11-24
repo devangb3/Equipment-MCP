@@ -21,6 +21,7 @@
 ```sh
 uv python install 3.12
 uv sync --locked
+uv run --locked ruff check
 uv run --locked pytest
 docker build --tag equipment-mcp-test .
 docker run --rm --network none equipment-mcp-test
