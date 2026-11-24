@@ -16,6 +16,18 @@
 - Raise a specific exception for invalid input and missing records. Use `assert` only for internal invariants.
 - Keep domain rules, MCP transport, and the agent loop in separate modules.
 
+## Code Review Rules
+
+Check pull request changes against all five SOLID principles. Report violations with a concrete effect on behavior, testability, or maintainability.
+
+- **Single responsibility.** Keep eligibility and submission decisions separate from MCP request handling and database access.
+- **Open/closed.** Flag changes that make adding an equipment policy or tool require edits across unrelated modules.
+- **Liskov substitution.** Check that interchangeable implementations preserve the return values, error behavior, and side effects their callers rely on.
+- **Interface segregation.** Flag interfaces that force callers or test doubles to depend on operations they never use.
+- **Dependency inversion.** Flag direct dependencies on MCP or database implementations that prevent policy logic from being tested in isolation.
+
+For each finding, point to the changed line, explain the impact, and suggest the smallest fix. Skip speculative abstractions.
+
 ## Checks
 
 ```sh
