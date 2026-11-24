@@ -21,5 +21,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --tag equipment-mcp-test .
-      - run: docker run --rm --network none equipment-mcp-test
+      - run: docker compose run --build --rm test

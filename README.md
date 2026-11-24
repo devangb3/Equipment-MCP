@@ -1,6 +1,6 @@
 # Equipment-MCP
 
-Python scaffold for an internal IT equipment request handler. The planned MCP server exposes employee records, policy limits, eligibility checks, and human review. The agent will use those tools to investigate requests and reflect on its drafted responses.
+Internal IT equipment request handler. An MCP server exposes employee records, policy limits, eligibility, and human review. An agent uses those tools to investigate a natural-language request, draft a response, and reflect before the response is final.
 
 ## Local setup
 
@@ -14,11 +14,10 @@ uv run --locked pytest
 
 The initial smoke test checks package discovery and SDK imports. GitHub Actions runs the suite on pushes and pull requests.
 
-## Run the tests in Docker
+## Run the tests with Docker Compose
 
-From the repository root, build the Python 3.12 test image and run it with networking disabled. CI runs these same commands. The image includes the project and its test dependencies, so running it requires only Docker.
+From the repository root, run the same Docker Compose command as CI. It builds the Python 3.12 image, runs pytest with container networking disabled, and removes the test container afterward.
 
 ```sh
-docker build --tag equipment-mcp-test .
-docker run --rm --network none equipment-mcp-test
+docker compose run --build --rm test
 ```

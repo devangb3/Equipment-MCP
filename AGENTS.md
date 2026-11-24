@@ -1,8 +1,27 @@
 # Working on Equipment MCP
 
-Follow industry standard coding practices and SOLID principles with OOP, also good agentic principles.
-Look up latest MCP version and make sure we are following it while building.
-Keep test coverage as high as possible.
-Make sure the rubric from misc/Assignment.pdf is followed
-Be brave and add files/ features/ folders to keep code maintainable and reliable.
-Never commit anything yourself without human approval.
+## Non-negotiables
+
+- Treat the rubric in `misc/Assignment.pdf` as the acceptance criteria. A feature is unfinished until its rubric row can be demonstrated.
+- Policy lives in `docs/requirements.md`. Encode a rule only after that doc states the fields, the limit, the boundary example, and whether the outcome is approval, denial, or human review.
+- Before adding a tool or a client, check the installed [MCP Python SDK](https://pypi.org/project/mcp/1.30.0/) (`mcp>=1,<2` in `pyproject.toml`; [v1 docs](https://py.sdk.modelcontextprotocol.io/v1/)) and the current official [Python quickstart](https://py.sdk.modelcontextprotocol.io/v1/#quick-example), and follow that API. 
+- Keep test coverage high. Every tool's underlying function has unit tests for the success path and for edge cases, including unknown ids. Keep one assert per unit test. Make sure tests are high-fidelity.
+- Follow SOLID. Prefer small types and one reason to change per module. Add packages and files when that keeps a change local.
+- Never commit, push, or open a pull request without explicit human approval. Leave `misc/` untracked.
+
+## Code
+
+- Python 3.12 only. Change dependencies in `pyproject.toml`, refresh `uv.lock`
+- Use specific types, unions, and `TypeVar`. `typing.Any` is forbidden.
+- Raise a specific exception for invalid input and missing records. Use `assert` only for internal invariants.
+- Keep domain rules, MCP transport, and the agent loop in separate modules.
+
+## Checks
+
+```sh
+uv python install 3.12
+uv sync --locked
+uv run --locked pytest
+docker build --tag equipment-mcp-test .
+docker run --rm --network none equipment-mcp-test
+```
