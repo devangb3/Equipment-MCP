@@ -14,6 +14,19 @@ uv run --locked pytest
 
 The initial smoke test checks package discovery and SDK imports. GitHub Actions runs the suite on pushes and pull requests.
 
+## Quickstart
+
+To connect by URL, start the server with Streamable HTTP:
+
+```sh
+uv run --locked python -m server.quickstart
+```
+
+Connect your MCP client using **Streamable HTTP** and connect to `http://127.0.0.1:8000/mcp`. Use `--port` to choose a different port.
+
+To verify both transports, run the checks below. Each starts its own server, lists the tools, calls `add(2, 3)`, and prints the result.
+
+
 ## Run the tests with Docker Compose
 
 From the repository root, run the same Docker Compose command as CI. It builds the Python 3.12 image, runs pytest with container networking disabled, and removes the test container afterward.
