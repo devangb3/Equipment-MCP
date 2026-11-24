@@ -5,7 +5,7 @@ import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from server.quickstart import add
+from quickstart.server import add
 
 
 @pytest.mark.parametrize(("a", "b", "expected"), [(2, 3, 5), (0, 0, 0), (-5, 2, -3)])
@@ -13,18 +13,10 @@ def test_add(a: int, b: int, expected: int) -> None:
     assert add(a, b) == expected
 
 
-async def check_add(session: ClientSession) -> None:
-    info = await session.initialize()
-    names = [tool.name for tool in (await session.list_tools()).tools]
-    result = await session.call_tool("add", {"a": 2, "b": 3})
-    print(f"Connected to {info.serverInfo.name}. Registered tools: {names}. add(2, 3): {result.structuredContent}")
-    assert (names, result.isError, result.structuredContent) == (["add"], False, {"result": 5})
-
-
 def test_streamable_http_registers_and_runs_add(free_tcp_port: int) -> None:
     async def check_server() -> None:
         process = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "server.quickstart",
+            sys.executable, "-m", "quickstart.server",
             "--port", str(free_tcp_port),
         )
         try:
@@ -46,7 +38,18 @@ def test_streamable_http_registers_and_runs_add(free_tcp_port: int) -> None:
                     streamable_http_client(url) as (reader, writer_stream, _),
                     ClientSession(reader, writer_stream) as session,
                 ):
-                    await check_add(session)
+                    info = await session.initialize()
+                    names = [tool.name for tool in (await session.list_tools()).tools]
+                    result = await session.call_tool("add", {"a": 2, "b": 3})
+                    print(
+                        f"Connected to {info.serverInfo.name}. "
+                        f"Registered tools: {names}. add(2, 3): {result.structuredContent}"
+                    )
+                    assert (names, result.isError, result.structuredContent) == (
+                        ["add"],
+                        False,
+                        {"result": 5},
+                    )
         finally:
             if process.returncode is None:
                 process.terminate()

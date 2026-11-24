@@ -12,7 +12,7 @@ def add(a: int, b: int) -> int:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run the one-tool MCP server.")
+    parser = argparse.ArgumentParser(description="Run the quickstart MCP server.")
     parser.add_argument("--port", type=int, default=mcp.settings.port, help="HTTP listening port")
     args = parser.parse_args()
     mcp.settings.port = args.port
