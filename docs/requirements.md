@@ -17,6 +17,8 @@ For a routine replacement, count calendar years from the most recent issue of th
 
 ## Decisions
 
+Evaluate the human-review conditions first. If any applies, record one human review and stop. Only evaluate the approval and denial rules when all human-review conditions have been ruled out.
+
 | Condition | Outcome | Example |
 | --- | --- | --- |
 | A fact needed for the decision is missing or conflicting. | Human review. | A manager requests a laptop refresh, but the assigned laptop has no issue date. Record the missing date as the reason. An unknown employee ID also requires human review because the role and history cannot be verified. |
