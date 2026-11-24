@@ -28,3 +28,13 @@ Evaluate the human-review conditions first. If any applies, record one human rev
 | The submission date for a routine replacement is before the refresh date. | Deny the request and return the next eligible date. | For the same laptop, a routine request on May 9, 2026 is one day early. |
 
 For every human review, save the submitted employee ID, the original request, and the specific reason in SQLite. Return the review ID. The employee uses that ID to reference the case.
+
+The eligibility check uses the submission date and the reason for the request. A routine refresh is the default. A broken device on its refresh anniversary qualifies for routine replacement. A request explicitly for an additional device always needs review. If the request's intent is unclear, record that uncertainty for human review.
+
+Issue history in the synthetic dataset is complete except where an issue date is explicitly missing. For the requested item, an issue before the hire date or after submission conflicts with the employee timeline and requires human review. An issue on either boundary is valid.
+
+## Request history and human decisions
+
+Submitting one item records the original text, employee ID, item, intent, submission date, policy outcome, reason and next eligible date when applicable. An eligibility lookup is a preview. A submission that needs review opens one pending case in the same transaction. Direct referrals and older review records retain the facts originally supplied, with unknown item and intent left empty.
+
+A human reviewer may approve or deny a pending case once. Record the reviewer, decision time and rationale alongside the original policy result. For example, a missing laptop issue date routes the request to review. If the reviewer verifies the date and approves it, the history shows both the referral and the approval. Repeating that decision with identical details returns the existing result. A conflicting later decision is rejected.
