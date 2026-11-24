@@ -25,7 +25,7 @@ def test_streamable_http_registers_and_runs_add(free_tcp_port: int) -> None:
     async def check_server() -> None:
         process = await asyncio.create_subprocess_exec(
             sys.executable, "-m", "server.quickstart",
-            "--transport", "streamable-http", "--port", str(free_tcp_port),
+            "--port", str(free_tcp_port),
         )
         try:
             async with asyncio.timeout(15):
