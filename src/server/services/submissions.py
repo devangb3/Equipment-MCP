@@ -2,8 +2,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..database import database_session
-from ..models import Intent, Receipt, required
+from ..models import Receipt, required
 from ..models.history import SubmittedRequest
+from ..models.tool_inputs import EmployeeID, EquipmentItem, RequestIntent, RequestText
 from .eligibility import EligibilityChecker
 
 
@@ -13,9 +14,16 @@ class Submissions:
     checker: EligibilityChecker
 
     def submit_request(
-        self, employee_id: str, item: str, request: str, intent: Intent = "routine"
+        self,
+        employee_id: EmployeeID,
+        item: EquipmentItem,
+        request: RequestText,
+        intent: RequestIntent = "routine",
     ) -> Receipt:
-        """Submit one equipment request. Saves the outcome and opens any required review case."""
+        """Evaluate one item and persist the original request text with its policy outcome.
+
+        Return a receipt with the submission ID and any review ID created for it.
+        """
         employee_id = required(employee_id, "employee_id")
         item = required(item, "item").casefold()
         required(request, "request")

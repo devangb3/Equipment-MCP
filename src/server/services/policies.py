@@ -3,6 +3,7 @@ from pathlib import Path
 
 from ..database import database_session
 from ..models import Policy, required
+from ..models.tool_inputs import EmployeeRole
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,9 @@ class RolePolicies:
         with database_session(self.path) as session:
             return Policy.for_role(session, role)
 
-    def get_policy_limits(self, role: str) -> dict[str, int]:
-        """Return each eligible item and its routine refresh interval in calendar years."""
+    def get_policy_limits(self, role: EmployeeRole) -> dict[str, int]:
+        """Map each covered item to its refresh interval in years.
+
+        Role lookup is case-insensitive and raises UnknownRole for an unlisted role.
+        """
         return {policy.item: policy.years for policy in self.list_policies(role)}

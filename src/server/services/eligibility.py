@@ -11,6 +11,7 @@ from ..models import (
     anniversary,
     required,
 )
+from ..models.tool_inputs import EmployeeID, EquipmentItem, RequestIntent
 
 
 @dataclass(frozen=True)
@@ -21,9 +22,16 @@ class EligibilityChecker:
     today: Callable[[], date] = date.today
 
     def check_request_eligibility(
-        self, employee_id: str, item: str, intent: Intent = "routine"
+        self,
+        employee_id: EmployeeID,
+        item: EquipmentItem,
+        intent: RequestIntent = "routine",
     ) -> Eligibility:
-        """Evaluate one item. Pass the request intent for exceptions. A review result needs flag_for_human_review."""
+        """Evaluate the item against the employee's role and issue history as of today.
+
+        Return an Eligibility result, including human_review for an unknown employee
+        or role.
+        """
         item = required(item, "item").casefold()
         submitted = self.today()
         try:

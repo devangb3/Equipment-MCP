@@ -11,6 +11,7 @@ from ..models import (
     required,
 )
 from ..models.history import ReviewDecision, SubmittedRequest
+from ..models.tool_inputs import EmployeeID, RequestText, ReviewReason
 
 
 @dataclass(frozen=True)
@@ -18,8 +19,13 @@ class ReviewQueue:
     path: Path
     today: Callable[[], date] = date.today
 
-    def flag_for_human_review(self, employee_id: str, request: str, reason: str) -> str:
-        """Save the original request and escalation reason, including for an unknown employee. Return its review ID."""
+    def flag_for_human_review(
+        self, employee_id: EmployeeID, request: RequestText, reason: ReviewReason
+    ) -> str:
+        """Record a direct referral with the original request and reason, and return its review ID.
+
+        Unknown employee IDs are accepted so a reviewer can investigate them.
+        """
         employee_id = required(employee_id, "employee_id")
         required(request, "request")
         required(reason, "reason")
