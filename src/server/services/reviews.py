@@ -4,12 +4,10 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from ..database import history_session
+from ..database import database_session
 from ..models import (
     Eligibility,
     InvalidField,
-    ReviewAlreadyResolved,
-    UnknownReview,
     required,
 )
 from ..models.history import ReviewDecision, SubmittedRequest
@@ -25,8 +23,10 @@ class ReviewQueue:
         employee_id = required(employee_id, "employee_id")
         required(request, "request")
         required(reason, "reason")
-        outcome = Eligibility("human_review", reason, self.today())
-        with history_session(self.path) as session:
+        outcome = Eligibility(
+            decision="human_review", reason=reason, submitted=self.today()
+        )
+        with database_session(self.path, write=True) as session:
             receipt = SubmittedRequest.record(
                 session, employee_id, request, None, None, outcome
             )
@@ -43,26 +43,5 @@ def resolve_review(
         raise InvalidField("Decision must be approve or deny")
     reviewer = required(reviewer, "reviewer")
     rationale = required(rationale, "rationale")
-    with history_session(path) as session:
-        submission = session.get(SubmittedRequest, review_id[1:])
-        if submission is None or submission.policy_outcome != "human_review":
-            raise UnknownReview(f"Unknown review: {review_id}")
-        request_id = submission.id
-        assert request_id is not None
-        prior = session.get(ReviewDecision, request_id)
-        if prior is not None:
-            if (prior.decision, prior.reviewer, prior.rationale) == (
-                decision,
-                reviewer,
-                rationale,
-            ):
-                return
-            raise ReviewAlreadyResolved(f"{review_id} already has a recorded decision")
-        session.add(
-            ReviewDecision(
-                request_id=request_id,
-                decision=decision,
-                reviewer=reviewer,
-                rationale=rationale,
-            )
-        )
+    with database_session(path, write=True) as session:
+        ReviewDecision.record(session, review_id, decision, reviewer, rationale)

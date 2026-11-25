@@ -3,21 +3,29 @@
 import sqlite3
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
+from functools import lru_cache
 from importlib.resources import files
 from pathlib import Path
 
-from sqlalchemy import URL
+from sqlalchemy import URL, Engine
 from sqlalchemy.pool import NullPool
 from sqlmodel import Session, create_engine
 
 
+@lru_cache(maxsize=16)
+def _engine(path: Path) -> Engine:
+    return create_engine(URL.create("sqlite", database=str(path)), poolclass=NullPool)
+
+
 @contextmanager
-def history_session(path: Path) -> Iterator[Session]:
-    engine = create_engine(URL.create("sqlite", database=str(path)), poolclass=NullPool)
-    with Session(engine) as session, session.begin():
+def database_session(path: Path, *, write: bool = False) -> Iterator[Session]:
+    with (
+        Session(_engine(path.resolve()), expire_on_commit=False) as session,
+        session.begin(),
+    ):
         connection = session.connection()
         connection.exec_driver_sql("PRAGMA foreign_keys = ON")
-        connection.exec_driver_sql("BEGIN IMMEDIATE")
+        connection.exec_driver_sql("BEGIN IMMEDIATE" if write else "BEGIN")
         yield session
 
 

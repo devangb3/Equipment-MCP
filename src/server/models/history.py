@@ -6,6 +6,7 @@ from typing import Literal
 from sqlalchemy import String, text
 from sqlmodel import Field, Session, SQLModel
 
+from .errors import ReviewAlreadyResolved, UnknownReview
 from .requests import Eligibility, Intent, Receipt
 
 
@@ -46,7 +47,7 @@ class SubmittedRequest(SQLModel, table=True):
         session.flush()
         assert row.id is not None
         review_id = f"R{row.id}" if row.policy_outcome == "human_review" else None
-        return Receipt(row.id, outcome, review_id)
+        return Receipt(request_id=row.id, eligibility=outcome, review_id=review_id)
 
 
 class ReviewDecision(SQLModel, table=True):
@@ -61,3 +62,35 @@ class ReviewDecision(SQLModel, table=True):
         nullable=False,
         sa_column_kwargs={"server_default": text("CURRENT_TIMESTAMP")},
     )
+
+    @classmethod
+    def record(
+        cls,
+        session: Session,
+        review_id: str,
+        decision: Literal["approve", "deny"],
+        reviewer: str,
+        rationale: str,
+    ) -> None:
+        submission = session.get(SubmittedRequest, review_id[1:])
+        if submission is None or submission.policy_outcome != "human_review":
+            raise UnknownReview(f"Unknown review: {review_id}")
+        request_id = submission.id
+        assert request_id is not None
+        prior = session.get(cls, request_id)
+        if prior is not None:
+            if (prior.decision, prior.reviewer, prior.rationale) == (
+                decision,
+                reviewer,
+                rationale,
+            ):
+                return
+            raise ReviewAlreadyResolved(f"{review_id} already has a recorded decision")
+        session.add(
+            cls(
+                request_id=request_id,
+                decision=decision,
+                reviewer=reviewer,
+                rationale=rationale,
+            )
+        )

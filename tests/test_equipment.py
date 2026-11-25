@@ -18,7 +18,11 @@ def equipment(tmp_path: Path) -> EquipmentRequests:
 
 def test_employee_info_only_includes_assigned_devices(equipment: EquipmentRequests):
     assert equipment.get_employee_info("M1") == EmployeeInfo(
-        "M1", "Manager", date(2020, 1, 15), 6, [Device("laptop", date(2024, 5, 10))]
+        employee_id="M1",
+        role="Manager",
+        hired=date(2020, 1, 15),
+        tenure_years=6,
+        current_equipment=[Device(item="laptop", issued=date(2024, 5, 10))],
     )
 
 
@@ -34,8 +38,8 @@ def test_blank_employee(equipment: EquipmentRequests):
 
 def test_policy_rows_match_the_table(equipment: EquipmentRequests):
     assert RolePolicies(equipment.path).list_policies("Manager") == [
-        Policy("Manager", "laptop", 2),
-        Policy("Manager", "monitor", 3),
+        Policy(role="Manager", item="laptop", years=2),
+        Policy(role="Manager", item="monitor", years=3),
     ]
 
 
@@ -104,17 +108,37 @@ def test_review_survives_restart(equipment: EquipmentRequests, employee: str):
     ],
 )
 def test_invalid_review(
-    equipment: EquipmentRequests, employee: str, request_text: str, reason: str, field: str
+    equipment: EquipmentRequests,
+    employee: str,
+    request_text: str,
+    reason: str,
+    field: str,
 ):
     with pytest.raises(InvalidField, match=field):
         equipment.flag_for_human_review(employee, request_text, reason)
 
 
-@pytest.mark.parametrize(("day", "years"), [(date(2026, 1, 14), 5), (date(2026, 1, 15), 6)])
-def test_tenure_counts_completed_years(equipment: EquipmentRequests, day: date, years: int):
+@pytest.mark.parametrize(
+    ("day", "years"), [(date(2026, 1, 14), 5), (date(2026, 1, 15), 6)]
+)
+def test_tenure_counts_completed_years(
+    equipment: EquipmentRequests, day: date, years: int
+):
     employees = EquipmentRequests(equipment.path, lambda: day)
     assert employees.get_employee_info("S1").tenure_years == years
 
 
 def test_assigned_device_with_unknown_issue_date(equipment: EquipmentRequests):
-    assert equipment.get_employee_info("M2").current_equipment == [Device("laptop", None)]
+    assert equipment.get_employee_info("M2").current_equipment == [
+        Device(item="laptop", issued=None)
+    ]
+
+
+def test_policy_role_lookup_is_case_insensitive(equipment: EquipmentRequests):
+    assert equipment.get_policy_limits("mAnAgEr") == {"laptop": 2, "monitor": 3}
+
+
+def test_refresh_uses_previously_assigned_equipment(equipment: EquipmentRequests):
+    with connect(equipment.path) as db:
+        db.execute("UPDATE equipment_issue SET assigned = 0 WHERE employee_id = 'S1'")
+    assert equipment.check_request_eligibility("S1", "laptop").decision == "deny"

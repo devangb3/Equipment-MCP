@@ -30,7 +30,9 @@ class EligibilityChecker:
             employee = self.employee_info(employee_id)
             limits = self.policy_limits(employee.role)
         except (UnknownEmployee, UnknownRole) as error:
-            return Eligibility("human_review", str(error), submitted)
+            return Eligibility(
+                decision="human_review", reason=str(error), submitted=submitted
+            )
         return evaluate_request(
             employee.hired,
             employee.role,
@@ -52,50 +54,68 @@ def evaluate_request(
     issues: list[date | None],
 ) -> Eligibility:
     if item not in limits:
-        return Eligibility("human_review", f"No {item} policy for {role}", submitted)
+        return Eligibility(
+            decision="human_review",
+            reason=f"No {item} policy for {role}",
+            submitted=submitted,
+        )
     if intent == "additional":
-        return Eligibility("human_review", f"Additional {item} requested", submitted)
+        return Eligibility(
+            decision="human_review",
+            reason=f"Additional {item} requested",
+            submitted=submitted,
+        )
     if intent == "unclear":
-        return Eligibility("human_review", "Request intent is unclear", submitted)
+        return Eligibility(
+            decision="human_review",
+            reason="Request intent is unclear",
+            submitted=submitted,
+        )
 
     dates: list[date] = []
     for issued_on in issues:
         if issued_on is None:
-            return Eligibility("human_review", f"Missing {item} issue date", submitted)
+            return Eligibility(
+                decision="human_review",
+                reason=f"Missing {item} issue date",
+                submitted=submitted,
+            )
         if not hired <= issued_on <= submitted:
             return Eligibility(
-                "human_review",
-                f"Conflicting {item} issue date: {issued_on}",
-                submitted,
+                decision="human_review",
+                reason=f"Conflicting {item} issue date: {issued_on}",
+                submitted=submitted,
             )
         dates.append(issued_on)
     if not dates:
         if intent == "broken":
             return Eligibility(
-                "human_review",
-                f"No issue on file for reported broken {item}",
-                submitted,
+                decision="human_review",
+                reason=f"No issue on file for reported broken {item}",
+                submitted=submitted,
             )
-        return Eligibility("approve", f"First {item} issue", submitted)
+        return Eligibility(
+            decision="approve", reason=f"First {item} issue", submitted=submitted
+        )
     latest = max(dates)
     eligible_on = anniversary(latest, latest.year + limits[item])
     if submitted >= eligible_on:
         return Eligibility(
-            "approve",
-            f"{item.capitalize()} refresh interval met",
-            submitted,
-            eligible_on,
+            decision="approve",
+            reason=f"{item.capitalize()} refresh interval met",
+            submitted=submitted,
+            next_eligible_date=eligible_on,
         )
     if intent == "broken":
         return Eligibility(
-            "human_review",
-            f"Early replacement of broken {item}",
-            submitted,
-            eligible_on,
+            decision="human_review",
+            reason=f"Early replacement of broken {item}",
+            submitted=submitted,
+            next_eligible_date=eligible_on,
         )
     return Eligibility(
-        "deny",
-        f"{item.capitalize()} refresh interval has not elapsed",
-        submitted,
-        eligible_on,
+        decision="deny",
+        reason=f"{item.capitalize()} refresh interval has not elapsed",
+        submitted=submitted,
+        next_eligible_date=eligible_on,
     )
