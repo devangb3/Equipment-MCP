@@ -1,1 +1,1 @@
-"""Equipment policy functions and MCP tool registration."""
+"""Equipment request models, services, and MCP entry points."""

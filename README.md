@@ -39,3 +39,39 @@ From the repository root, run the same Docker Compose command as CI. It builds t
 ```sh
 docker compose run --build --rm test
 ```
+
+## Equipment MCP server
+
+Start the server from the repository root.
+
+```sh
+uv run --locked python -m server --database equipment.sqlite3
+```
+
+With the server running, configure your MCP client to use Streamable HTTP at `http://127.0.0.1:8000/mcp`.
+
+The first start creates the SQLite file with four fictional employees and the role limits in [the requirements](docs/requirements.md). Subsequent starts reuse it. M1 is a manager and S1 is a standard employee, both with laptops issued on May 10, 2024. M2 has a laptop with a missing issue date. S2 has a monitor issued on February 29, 2024.
+
+| Tool | Example arguments | Result |
+| --- | --- | --- |
+| `get_employee_info` | `{"employee_id":"M1"}` | Role, hire date, completed years of service and current equipment |
+| `get_policy_limits` | `{"role":"Manager"}` | Refresh intervals in calendar years for each covered item |
+| `check_request_eligibility` | `{"employee_id":"M2","item":"laptop"}` | Decision and reason using today's date. Optional `intent` accepts `routine` (default), `additional`, `broken` or `unclear`. |
+| `flag_for_human_review` | `{"employee_id":"M2","request":"Please refresh my laptop.","reason":"Missing laptop issue date"}` | Saves the case and returns its review ID, such as `R1` |
+| `submit_request` | `{"employee_id":"M2","item":"laptop","request":"Please refresh my laptop."}` | Saves the submission and returns its request ID, policy result and any review ID. Accepts the same optional intent as the eligibility check. |
+
+Use `submit_request` once per submission. Its review ID identifies the case it already opened. Use `check_request_eligibility` for previews and `flag_for_human_review` for a direct referral.
+
+A human operator can record a decision for a pending review using its returned ID. For example, if the case is R1:
+
+```sh
+uv run --locked python -m server.resolve_review --database equipment.sqlite3 R1 approve --reviewer "Taylor" --rationale "Verified the original issue date."
+```
+
+Query the history in SQLite. Each row includes the original request, policy outcome, current status, and any human decision, reviewer, rationale and UTC decision time.
+
+```sql
+SELECT * FROM request_history ORDER BY request_id;
+```
+
+On upgrade, existing reviews keep their R-numbers and appear as pending. Earlier approvals and denials were never stored.
