@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Self
 
 from sqlmodel import Field, Session, SQLModel, col, select
 
@@ -62,7 +63,7 @@ class EquipmentIssue(SQLModel, table=True):
     def issue_dates(
         cls, session: Session, employee_id: str, item: str
     ) -> list[date | None]:
-        query = select(cls.issued).where(
+        query = select(col(cls.issued)).where(
             cls.employee_id == employee_id, cls.item == item
         )
         return list(session.exec(query))
@@ -74,7 +75,7 @@ class Policy(SQLModel, table=True):
     years: int
 
     @classmethod
-    def for_role(cls, session: Session, role: str) -> list["Policy"]:
+    def for_role(cls, session: Session, role: str) -> list[Self]:
         query = (
             select(cls)
             .where(col(cls.role).collate("NOCASE") == role)

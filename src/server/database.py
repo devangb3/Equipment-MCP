@@ -1,7 +1,7 @@
 """SQLite connections and transactional initialization."""
 
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import closing, contextmanager
 from functools import lru_cache
 from importlib.resources import files
@@ -18,7 +18,7 @@ def _engine(path: Path) -> Engine:
 
 
 @contextmanager
-def database_session(path: Path, *, write: bool = False) -> Iterator[Session]:
+def database_session(path: Path, *, write: bool = False) -> Generator[Session]:
     with (
         Session(_engine(path.resolve()), expire_on_commit=False) as session,
         session.begin(),
@@ -30,7 +30,7 @@ def database_session(path: Path, *, write: bool = False) -> Iterator[Session]:
 
 
 @contextmanager
-def connect(path: Path) -> Iterator[sqlite3.Connection]:
+def connect(path: Path) -> Generator[sqlite3.Connection]:
     with closing(sqlite3.connect(path)) as db, db:
         db.execute("PRAGMA foreign_keys = ON")
         yield db

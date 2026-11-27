@@ -10,10 +10,11 @@ With uv installed, run the same checks as CI from the repository root.
 uv python install 3.12
 uv sync --locked
 uv run --locked ruff check
+uv run --locked ty check
 uv run --locked pytest
 ```
 
-Ruff checks the code, then pytest runs the suite, including the smoke test for package discovery and SDK imports. GitHub Actions runs both on pushes and pull requests. The container job is the Docker Compose command below.
+Ruff lints the code, ty checks Python types, and pytest runs the suite, including the smoke test for package discovery and SDK imports. GitHub Actions runs all three on pushes and pull requests. The container job is the Docker Compose command below.
 
 ## Quickstart
 
