@@ -9,6 +9,7 @@ RUN uv sync --locked --no-install-project
 COPY src/ src/
 RUN uv sync --locked --no-editable
 COPY tests/ tests/
+COPY evals/*.py evals/
 
 ENV PATH="/app/.venv/bin:$PATH"
 USER 65534:65534
