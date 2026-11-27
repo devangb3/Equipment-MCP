@@ -12,10 +12,11 @@ def main() -> None:
         description="Run the equipment MCP server over Streamable HTTP."
     )
     parser.add_argument("--database", type=Path, default=Path("equipment.sqlite3"))
+    parser.add_argument("--port", type=int, default=43817)
     args = parser.parse_args()
     initialize(args.database)
     requests = EquipmentRequests(args.database)
-    mcp = FastMCP("Equipment requests")
+    mcp = FastMCP("Equipment requests", port=args.port, stateless_http=True)
     mcp.tool(
         title="Look up employee equipment",
         description=(

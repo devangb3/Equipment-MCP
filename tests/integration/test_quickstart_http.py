@@ -5,13 +5,6 @@ import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from quickstart.server import add
-
-
-@pytest.mark.parametrize(("a", "b", "expected"), [(2, 3, 5), (0, 0, 0), (-5, 2, -3)])
-def test_add(a: int, b: int, expected: int) -> None:
-    assert add(a, b) == expected
-
 
 def test_streamable_http_registers_and_runs_add(free_tcp_port: int) -> None:
     async def check_server() -> None:
