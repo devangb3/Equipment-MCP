@@ -138,7 +138,9 @@ name = "equipment-mcp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "mcp" },
+    { name = "pydantic" },
     { name = "sqlmodel" },
 ]
 
@@ -150,7 +152,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "mcp", specifier = ">=1,<2" },
+    { name = "pydantic", specifier = ">=2,<3" },
     { name = "sqlmodel", specifier = ">=0.0.24,<0.1" },
 ]
 

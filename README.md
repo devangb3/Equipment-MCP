@@ -68,3 +68,32 @@ A human operator can record a decision for a pending review using its returned I
 uv run --locked python -m server.resolve_review --database equipment.sqlite3 R1 approve --reviewer "Taylor" --rationale "Verified the original issue date."
 ```
 
+
+## Run the ReAct agent MCP CLient
+
+Start the equipment MCP server as shown above. Copy `.env.example` to `.env` and set
+`FOUNDRY_BASE_URL`, `FOUNDRY_MODEL` (deployment name), and `FOUNDRY_API_KEY`.
+
+In a second terminal, supply the employee ID and the request in their own words.
+
+```sh
+uv run --locked --env-file .env python -m agent S1 "I need my first monitor."
+```
+
+Each turn prints the model's brief action purpose under `Thought`, the MCP call under
+`Action`, and the server result under `Observation`. The model receives that result
+before selecting its next action. The same model then checks its draft against
+the verified eligibility decision and any review receipt. If the draft needs work,
+the model gives specific feedback, rewrites it, and checks the revision. Each pass
+sees the original request, earlier drafts, and feedback. Refinement runs without tools.
+After three unsuccessful rewrites the agent returns the verified decision. Approvals and denials report
+eligibility. An escalation opens a case and returns its ID.
+
+To see the approval, denial, and escalation traces without credentials, run the
+integration scenarios. They use scripted model responses, a running MCP server,
+and a fresh SQLite database per request. The denial and escalation cases also
+exercise correction of a draft that promises shipment.
+
+```sh
+uv run --locked pytest -q -s tests/integration/test_agent.py
+```
