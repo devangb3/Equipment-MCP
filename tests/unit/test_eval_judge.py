@@ -128,7 +128,8 @@ def test_judge_receives_named_case_questions(referral: Run) -> None:
     respond = judge_reply(verdict())
 
     asyncio.run(grade(case, referral, respond, "judge"))
-    packet = json.loads(respond.await_args.args[1][0]["content"])
+    last_call = respond.await_args_list[-1]
+    packet = json.loads(last_call.args[1][0]["content"])
 
     assert packet["rubric"]["case"] == case.expected.rubric
 
