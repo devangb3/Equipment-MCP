@@ -18,3 +18,14 @@ def test_failed_initial_creation_rolls_back_earlier_tables(tmp_path: Path) -> No
         assert db.execute(
             "SELECT name FROM sqlite_schema WHERE type = 'table'"
         ).fetchall() == [("policy",)]
+
+
+def test_initialize_rejects_an_unsupported_schema_version(tmp_path: Path) -> None:
+    path = tmp_path / "equipment.db"
+    with connect(path) as db:
+        db.execute("PRAGMA user_version = 9")
+
+    with pytest.raises(
+        sqlite3.NotSupportedError, match="Unsupported equipment schema version: 9"
+    ):
+        initialize(path)

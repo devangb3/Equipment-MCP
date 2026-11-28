@@ -1,7 +1,12 @@
 import json
+import sys
+from pathlib import Path
+
+import pytest
 
 from evals.cases import CASES_BY_ID
 from evals.checks import Run, acceptable_reasons, checks
+from evals.checks import main as check_captures
 from evals.models import Expected
 
 
@@ -82,4 +87,25 @@ def test_unsupported_drawing_tablet_alias_trace_passes_checks() -> None:
         "tools": True,
         "database": True,
         "receipt_in_response": True,
+    }
+
+
+def test_checks_command_prints_one_result_per_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    case = CASES_BY_ID["identity"]
+    capture = tmp_path / "captures.jsonl"
+    record = Run(
+        id=case.id, input=case.input, final="Referred", trace=[], new_requests=[]
+    )
+    capture.write_text(record.model_dump_json() + "\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["checks", str(capture)])
+
+    check_captures()
+
+    assert json.loads(capsys.readouterr().out) == {
+        "id": "identity",
+        "checks": {"tools": False, "database": False, "receipt_in_response": False},
     }

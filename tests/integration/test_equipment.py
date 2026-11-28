@@ -4,7 +4,14 @@ from pathlib import Path
 import pytest
 
 from server.database import connect, initialize
-from server.models import Device, EmployeeInfo, InvalidField, Policy, UnknownEmployee
+from server.models import (
+    Device,
+    EmployeeInfo,
+    Intent,
+    InvalidField,
+    Policy,
+    UnknownEmployee,
+)
 from server.services import EquipmentRequests
 from server.services.policies import RolePolicies
 
@@ -56,34 +63,98 @@ def test_missing_role(equipment: EquipmentRequests):
 
 
 @pytest.mark.parametrize(
-    ("employee", "item", "day", "intent", "decision", "eligible_on"),
+    ("scenario", "expected"),
     [
-        ("M1", "laptop", "2026-05-09", "routine", "deny", "2026-05-10"),
-        ("M1", "laptop", "2026-05-10", "routine", "approve", "2026-05-10"),
-        ("S1", "laptop", "2026-05-10", "routine", "deny", "2028-05-10"),
-        ("M1", "laptop", "2026-05-09", "broken", "human_review", "2026-05-10"),
-        ("M1", "laptop", "2026-05-10", "broken", "approve", "2026-05-10"),
-        ("M1", "laptop", "2026-05-10", "additional", "human_review", None),
-        ("M2", "laptop", "2026-05-10", "routine", "human_review", None),
-        ("S1", "monitor", "2026-05-10", "routine", "approve", None),
-        ("S1", "monitor", "2026-05-10", "broken", "human_review", None),
-        ("X9", "monitor", "2026-05-10", "routine", "human_review", None),
-        ("S2", "monitor", "2027-02-28", "routine", "approve", "2027-02-28"),
-        ("S2", "tablet", "2027-02-28", "routine", "human_review", None),
-        ("S2", "monitor", "2024-02-28", "routine", "human_review", None),
-        ("S2", "monitor", "2027-02-28", "unclear", "human_review", None),
+        pytest.param(
+            ("M1", "laptop", "2026-05-09", "routine"),
+            ("deny", "Laptop refresh interval has not elapsed", "2026-05-10"),
+            id="manager-one-day-early",
+        ),
+        pytest.param(
+            ("M1", "laptop", "2026-05-10", "routine"),
+            ("approve", "Laptop refresh interval met", "2026-05-10"),
+            id="manager-on-anniversary",
+        ),
+        pytest.param(
+            ("S1", "laptop", "2026-05-10", "routine"),
+            ("deny", "Laptop refresh interval has not elapsed", "2028-05-10"),
+            id="standard-employee-four-year-limit",
+        ),
+        pytest.param(
+            ("M1", "laptop", "2026-05-09", "broken"),
+            ("human_review", "Early replacement of broken laptop", "2026-05-10"),
+            id="broken-before-anniversary",
+        ),
+        pytest.param(
+            ("M1", "laptop", "2026-05-10", "broken"),
+            ("approve", "Laptop refresh interval met", "2026-05-10"),
+            id="broken-on-anniversary",
+        ),
+        pytest.param(
+            ("M1", "laptop", "2026-05-10", "additional"),
+            ("human_review", "Additional laptop requested", None),
+            id="additional-device",
+        ),
+        pytest.param(
+            ("M2", "laptop", "2026-05-10", "routine"),
+            ("human_review", "Missing laptop issue date", None),
+            id="missing-issue-date",
+        ),
+        pytest.param(
+            ("S1", "monitor", "2026-05-10", "routine"),
+            ("approve", "First monitor issue", None),
+            id="first-monitor",
+        ),
+        pytest.param(
+            ("S1", "monitor", "2026-05-10", "broken"),
+            ("human_review", "No issue on file for reported broken monitor", None),
+            id="broken-without-issue-history",
+        ),
+        pytest.param(
+            ("X9", "monitor", "2026-05-10", "routine"),
+            ("human_review", "Unknown employee: X9", None),
+            id="unknown-employee",
+        ),
+        pytest.param(
+            ("S2", "monitor", "2027-02-28", "routine"),
+            ("approve", "Monitor refresh interval met", "2027-02-28"),
+            id="leap-day-anniversary",
+        ),
+        pytest.param(
+            ("S2", "tablet", "2027-02-28", "routine"),
+            ("human_review", "No tablet policy for Standard employee", None),
+            id="uncovered-item",
+        ),
+        pytest.param(
+            ("S2", "monitor", "2024-02-28", "routine"),
+            ("human_review", "Conflicting monitor issue date: 2024-02-29", None),
+            id="future-issue-date",
+        ),
+        pytest.param(
+            ("S2", "monitor", "2027-02-28", "unclear"),
+            ("human_review", "Request intent is unclear", None),
+            id="unclear-intent",
+        ),
     ],
 )
 def test_eligibility(
-    equipment: EquipmentRequests, employee, item, day, intent, decision, eligible_on
-):
-    result = EquipmentRequests(
-        equipment.path, lambda: date.fromisoformat(day)
-    ).check_request_eligibility(employee, item, intent)
-    assert (result.decision, result.next_eligible_date) == (
-        decision,
-        date.fromisoformat(eligible_on) if eligible_on else None,
-    )
+    equipment: EquipmentRequests,
+    scenario: tuple[str, str, str, Intent],
+    expected: tuple[str, str, str | None],
+) -> None:
+    employee, item, day, intent = scenario
+    decision, reason, eligible_on = expected
+    submitted = date.fromisoformat(day)
+    requests = EquipmentRequests(equipment.path, lambda: submitted)
+
+    result = requests.check_request_eligibility(employee, item, intent)
+
+    assert result.model_dump() == {
+        "decision": decision,
+        "reason": reason,
+        "submitted": submitted,
+        "next_eligible_date": date.fromisoformat(eligible_on) if eligible_on else None,
+    }
 
 
 @pytest.mark.parametrize("employee", ["M1", "X9"])
@@ -141,4 +212,12 @@ def test_policy_role_lookup_is_case_insensitive(equipment: EquipmentRequests):
 def test_refresh_uses_previously_assigned_equipment(equipment: EquipmentRequests):
     with connect(equipment.path) as db:
         db.execute("UPDATE equipment_issue SET assigned = 0 WHERE employee_id = 'S1'")
-    assert equipment.check_request_eligibility("S1", "laptop").decision == "deny"
+
+    result = equipment.check_request_eligibility("S1", "laptop")
+
+    assert result.model_dump() == {
+        "decision": "deny",
+        "reason": "Laptop refresh interval has not elapsed",
+        "submitted": date(2026, 5, 10),
+        "next_eligible_date": date(2028, 5, 10),
+    }

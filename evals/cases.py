@@ -733,6 +733,12 @@ CASES: tuple[EvalCase, ...] = (
     ),
 )
 
-CASES_BY_ID = {case.id: case for case in CASES}
-if len(CASES_BY_ID) != len(CASES):
-    raise ValueError("Evaluation case IDs must be unique.")
+
+def index_cases(cases: tuple[EvalCase, ...]) -> dict[str, EvalCase]:
+    indexed = {case.id: case for case in cases}
+    if len(indexed) != len(cases):
+        raise ValueError("Evaluation case IDs must be unique.")
+    return indexed
+
+
+CASES_BY_ID = index_cases(CASES)
