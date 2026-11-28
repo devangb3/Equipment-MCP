@@ -5,13 +5,17 @@ from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 type Item = dict[str, object]
 
 
 class AgentError(RuntimeError):
     """The agent could not produce a grounded decision."""
+
+
+class ProviderUnavailable(AgentError):
+    """The provider could not be reached; a configured alternative may be tried."""
 
 
 class Response(BaseModel):
@@ -75,13 +79,18 @@ class Foundry:
                     self.url, json=body, headers={"api-key": self.key}
                 )
             except httpx.ConnectError as error:
-                raise AgentError(
+                raise ProviderUnavailable(
                     "Could not connect to the configured Foundry endpoint."
                 ) from error
             response.raise_for_status()
-        result = Response.model_validate_json(response.content)
+        try:
+            result = Response.model_validate_json(response.content)
+        except ValidationError:
+            raise AgentError("Foundry returned an invalid response envelope.") from None
         if result.status != "completed":
             raise AgentError(f"Foundry response status was {result.status}.")
+        if not result.output:
+            raise AgentError("Foundry returned an empty response.")
         return result.output
 
 

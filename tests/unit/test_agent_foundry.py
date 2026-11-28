@@ -160,3 +160,24 @@ async def test_foundry_rejects_an_incomplete_response(
 def test_message_text_rejects_output_without_response_text(output: list[Item]) -> None:
     with pytest.raises(AgentError, match="Foundry returned no response text"):
         message_text(output)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize(
+    "body",
+    [
+        "not-json",
+        '{"status":"completed","output":null}',
+        '{"status":"completed","output":[]}',
+    ],
+)
+async def test_foundry_rejects_invalid_or_empty_envelopes(
+    monkeypatch: pytest.MonkeyPatch, body: str
+) -> None:
+    model = configured(
+        monkeypatch, httpx.MockTransport(lambda _: httpx.Response(200, content=body))
+    )
+
+    with pytest.raises(AgentError, match="Foundry returned"):
+        await model.respond("Investigate", [], [])

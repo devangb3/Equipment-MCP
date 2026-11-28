@@ -299,3 +299,99 @@ async def test_eval_records_foundry_error_and_continues(
         second.id,
         "Approved. Laptop refresh interval met.",
     )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_failover_after_saved_referral_does_not_create_a_second_case(
+    equipment_url: str,
+    tmp_path: Path,
+) -> None:
+    from agent.providers import Failover
+
+    fixture = FixtureModel("laptop", "additional")
+
+    async def primary(
+        instructions: str, history: list[Item], tools: list[Item]
+    ) -> list[Item]:
+        if any(
+            item.get("type") == "function_call_output"
+            and '"R1"' in str(item.get("output"))
+            for item in history
+        ):
+            raise httpx.ReadTimeout("primary unavailable after saved referral")
+        return await fixture.respond(instructions, history, tools)
+
+    router = Failover(primary, fixture.respond)
+
+    answer = await run(
+        equipment_url, "M1", "I want to keep my laptop and add another.", router.respond
+    )
+
+    with sqlite3.connect(tmp_path / "equipment.sqlite3") as db:
+        count = db.execute("SELECT COUNT(*) FROM human_review").fetchone()[0]
+    assert (answer, count, router.using_fallback) == (
+        "Referred for human review (R1). Additional laptop requested.",
+        1,
+        True,
+    )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_http_provider_failover_preserves_tool_receipts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agent.providers import Failover, OpenRouter
+
+    case = CASES_BY_ID["ledger-c"]
+    services = eval_run.prepare(case, tmp_path / "equipment.sqlite3")
+    fixture = FixtureModel(case.expected.item, "routine")
+    provider_calls: list[str] = []
+
+    async def reply(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        provider_calls.append(request.url.host)
+        if request.url.host == "foundry.example" and any(
+            item.get("type") == "function_call_output"
+            and '"R43"' in str(item.get("output"))
+            for item in body["input"]
+        ):
+            return httpx.Response(503)
+        output = await fixture.respond(
+            body["instructions"], body["input"], body["tools"]
+        )
+        return httpx.Response(200, json={"status": "completed", "output": output})
+
+    client_class = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: client_class(transport=httpx.MockTransport(reply), **kwargs),
+    )
+    primary = Foundry(
+        "https://foundry.example/openai/v1/responses", "deployment", "key"
+    )
+    fallback = OpenRouter("vendor/model", "key")
+    router = Failover(primary.respond, fallback.respond)
+
+    result = await eval_run.capture(case, services, router.respond)
+
+    with sqlite3.connect(services.path) as db:
+        count = db.execute(
+            "SELECT COUNT(*) FROM human_review WHERE id > 42"
+        ).fetchone()[0]
+    assert (
+        result.get("error"),
+        result.get("final"),
+        count,
+        router.using_fallback,
+        provider_calls[-1],
+    ) == (
+        None,
+        "Referred for human review (R43). Missing laptop issue date.",
+        1,
+        True,
+        "openrouter.ai",
+    )

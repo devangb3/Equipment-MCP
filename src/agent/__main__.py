@@ -8,8 +8,9 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from .client import bind_call, discover
-from .foundry import AgentError, Foundry
+from .foundry import AgentError
 from .loop import Respond, run_agent_loop
+from .providers import configured_model
 
 
 async def run(url: str, employee_id: str, request: str, respond: Respond) -> str:
@@ -43,7 +44,7 @@ def main() -> None:
     parser.add_argument("--url", default="http://127.0.0.1:43817/mcp")
     args = parser.parse_args()
     try:
-        model = Foundry.from_env()
+        model = configured_model()
         answer = asyncio.run(
             run(args.url, args.employee_id, args.request, model.respond)
         )
