@@ -2,7 +2,6 @@
 
 ## Non-negotiables
 
-- Treat the rubric in `misc/Assignment.pdf` as the acceptance criteria. A feature is unfinished until its rubric row can be demonstrated.
 - Policy lives in `docs/requirements.md`. Encode a rule only after that doc states the fields, the limit, the boundary example, and whether the outcome is approval, denial, or human review.
 - Before adding a tool or a client, check the installed [MCP Python SDK](https://pypi.org/project/mcp/1.30.0/) (`mcp>=1,<2` in `pyproject.toml`; [v1 docs](https://py.sdk.modelcontextprotocol.io/v1/)) and the current official [Python quickstart](https://py.sdk.modelcontextprotocol.io/v1/#quick-example), and follow that API. 
 - Keep test coverage high. Every tool's underlying function has unit tests for the success path and for edge cases, including unknown ids. Keep one assert per unit test. Make sure tests are high-fidelity. Unit Tests should follow Arrange-Act-Assert Pattern.
