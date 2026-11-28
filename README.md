@@ -105,6 +105,42 @@ exercise correction of a draft that promises shipment.
 uv run --locked pytest -q -s tests/integration/test_agent.py
 ```
 
+## OpenRouter and provider failover
+
+The agent defaults to Foundry. To use OpenRouter directly, set `MODEL_PROVIDER=openrouter`,
+`OPENROUTER_API_KEY`, and `OPENROUTER_MODEL` in `.env`. Choose a model that supports
+function tools. No Foundry credentials are needed in this mode.
+
+To keep Foundry primary and enable OpenRouter as a fallback:
+
+```dotenv
+MODEL_PROVIDER=foundry
+MODEL_FALLBACK_PROVIDER=openrouter
+OPENROUTER_API_KEY=your-key
+OPENROUTER_MODEL=vendor/tool-capable-model
+```
+
+Keep the existing Foundry settings as well. Setting the fallback is an explicit opt-in
+to send employee requests, public conversation messages, and tool observations to
+OpenRouter and its selected model provider. Merely adding an API key does not enable it.
+Provider-private reasoning and message IDs are removed from OpenRouter history;
+tool call IDs and completed tool results are preserved. Both providers use `store=false`;
+that flag is not a guarantee of third-party retention policy. Check your organization's
+provider/data rules before enabling external routing.
+
+The integration uses OpenRouter's [Responses API](https://openrouter.ai/docs/api/api-reference/responses/create-a-response)
+with bearer authentication. It switches on connection/transport errors, HTTP 408/429,
+and HTTP 5xx, then stays with OpenRouter for the rest of that agent request, including
+reflection. Each turn makes at most one attempt per provider with a 120-second HTTP
+operation timeout. There is no retry loop, workflow restart, or automatic MCP tool retry.
+A saved human-review receipt remains part of the history. HTTP 4xx other than 408/429,
+invalid configuration, invalid/incomplete model output, and cancellation do not trigger
+failover. The agent stops on fallback failure. A warning reports the provider switch
+without logging credentials or conversation content.
+
+Evaluation CLIs (`evals.run` and `evals.judge`) continue to use Foundry independently;
+the new routing settings apply to `python -m agent`.
+
 ## Agent evaluation
 
 The [equipment evaluation suite](evals/README.md) runs the ReAct and Self-Refine loops against isolated employee histories.
