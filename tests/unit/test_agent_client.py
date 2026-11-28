@@ -128,3 +128,24 @@ def test_tool_without_structured_content_is_rejected() -> None:
         AgentError, match="get_employee_info returned no structured result"
     ):
         asyncio.run(execute_tool(cast(ClientSession, session), "get_employee_info", {}))
+
+
+def test_discovery_rejects_cyclic_pagination() -> None:
+    session = ToolSession(
+        [
+            ListToolsResult(tools=[], nextCursor="same"),
+            ListToolsResult(tools=[], nextCursor="same"),
+        ]
+    )
+
+    with pytest.raises(AgentError, match="pagination"):
+        asyncio.run(discover(cast(ClientSession, session)))
+
+
+def test_discovery_rejects_duplicate_tool_names() -> None:
+    session = ToolSession(
+        [ListToolsResult(tools=[tool("get_employee_info"), tool("get_employee_info")])]
+    )
+
+    with pytest.raises(AgentError, match="Duplicate tool"):
+        asyncio.run(discover(cast(ClientSession, session)))

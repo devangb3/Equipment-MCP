@@ -19,11 +19,16 @@ TOOLS = {
 async def discover(session: ClientSession) -> list[Item]:
     definitions: list[Item] = []
     cursor = None
-    while True:
+    seen_cursors: set[str] = set()
+    seen_tools: set[str] = set()
+    for _ in range(100):
         page = await session.list_tools(params=PaginatedRequestParams(cursor=cursor))
         for tool in page.tools:
             if tool.name not in TOOLS:
                 continue
+            if tool.name in seen_tools:
+                raise AgentError(f"Duplicate tool definition: {tool.name}")
+            seen_tools.add(tool.name)
             schema = tool.inputSchema
             properties = {
                 **schema["properties"],
@@ -49,6 +54,11 @@ async def discover(session: ClientSession) -> list[Item]:
         cursor = page.nextCursor
         if not cursor:
             break
+        if cursor in seen_cursors:
+            raise AgentError("Equipment MCP pagination repeated a cursor.")
+        seen_cursors.add(cursor)
+    else:
+        raise AgentError("Equipment MCP pagination exceeded 100 pages.")
     if {d["name"] for d in definitions} != TOOLS:
         raise AgentError("Equipment MCP server is missing required tools.")
     return definitions

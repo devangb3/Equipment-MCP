@@ -3,7 +3,7 @@
 import json
 from collections.abc import Awaitable, Callable
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationError
 
 from .evidence import Evidence
 from .foundry import AgentError, Item, message_text
@@ -22,9 +22,10 @@ Give each action a brief public purpose. When ready, draft a concise response wi
 the decision, reason, next eligible date for denial, or confirmed review ID.
 Only promise outcomes established by the tools."""
 
+
 class Action(BaseModel):
-    name: str
-    call_id: str
+    name: str = Field(min_length=1, pattern=r"\S")
+    call_id: str = Field(min_length=1, pattern=r"\S")
     arguments: str
 
 
@@ -65,14 +66,30 @@ async def run_agent_loop(
         calls = [item for item in output if item.get("type") == "function_call"]
         if not calls:
             return await reflect(
-                request, message_text(output), evidence.verified_response(), respond, trace
+                request,
+                message_text(output),
+                evidence.verified_response(),
+                respond,
+                trace,
             )
         if len(calls) != 1:
             raise AgentError("Expected one tool call per turn.")
-        action = Action.model_validate(calls[0])
+        try:
+            action = Action.model_validate(calls[0])
+        except ValidationError:
+            raise AgentError("Invalid tool call envelope.") from None
         if action.name not in {tool["name"] for tool in available}:
             raise AgentError(f"Unavailable tool: {action.name}")
-        args = json.loads(action.arguments)
+        try:
+            args = json.loads(
+                action.arguments,
+                object_pairs_hook=unique_fields,
+                parse_constant=reject_constant,
+            )
+        except (ValueError, RecursionError):
+            raise AgentError(
+                "Invalid tool arguments: expected unambiguous JSON."
+            ) from None
         if not isinstance(args, dict) or not isinstance(
             purpose := args.pop("purpose", None), str
         ):
@@ -83,3 +100,16 @@ async def run_agent_loop(
         history.extend(output)
         history.append(observation)
     raise AgentError("Agent reached its turn limit before producing a draft.")
+
+
+def unique_fields(pairs: list[tuple[str, object]]) -> Item:
+    result: Item = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate JSON field")
+        result[key] = value
+    return result
+
+
+def reject_constant(value: str) -> object:
+    raise ValueError("Non-finite JSON number")

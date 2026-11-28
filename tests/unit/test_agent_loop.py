@@ -122,3 +122,40 @@ def test_turn_limit_stops_an_open_investigation() -> None:
         outcome = (str(error), calls)
 
     assert outcome == ("Agent reached its turn limit before producing a draft.", 10)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        "{broken",
+        '{"purpose":"check","item":NaN}',
+        '{"purpose":"check","item":"monitor","item":"laptop"}',
+    ],
+)
+def test_malformed_arguments_fail_closed(arguments: str) -> None:
+    async def respond(
+        instructions: str, history: list[Item], tools: list[Item]
+    ) -> list[Item]:
+        return [function_call("get_employee_info", arguments)]
+
+    with pytest.raises(AgentError, match="Invalid tool arguments"):
+        asyncio.run(
+            run_agent_loop("S1", "monitor", respond, TOOLS, unused_tool, lambda _: None)
+        )
+
+
+@pytest.mark.parametrize(
+    "field,value", [("name", ""), ("call_id", " "), ("arguments", 7), ("call_id", None)]
+)
+def test_invalid_action_envelope_is_rejected(field: str, value: object) -> None:
+    async def respond(
+        instructions: str, history: list[Item], tools: list[Item]
+    ) -> list[Item]:
+        action = function_call("get_employee_info", '{"purpose":"check"}')
+        action[field] = value
+        return [action]
+
+    with pytest.raises(AgentError, match="Invalid tool call"):
+        asyncio.run(
+            run_agent_loop("S1", "monitor", respond, TOOLS, unused_tool, lambda _: None)
+        )
