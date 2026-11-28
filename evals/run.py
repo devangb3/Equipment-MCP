@@ -11,6 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TextIO, get_args
 
+import httpx
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from agent.__main__ import describe_failure
@@ -105,7 +106,7 @@ async def capture(
                 bind_call(session),
                 trace.append,
             )
-    except (ExceptionGroup, AgentError, ValueError) as error:
+    except (ExceptionGroup, AgentError, ValueError, httpx.HTTPError) as error:
         result["error"] = describe_failure(error)
     with connect(services.path) as db:
         db.row_factory = sqlite3.Row
