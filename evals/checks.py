@@ -8,7 +8,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, TypeAdapter
 
 from .cases import CASES_BY_ID
-from .models import EmployeeRequest, EvalCase
+from .models import EmployeeRequest, EvalCase, Expected
 
 OBSERVATION = TypeAdapter(dict[str, object])
 
@@ -40,10 +40,20 @@ class Run(BaseModel):
         return calls
 
 
+def acceptable_reasons(expected: Expected) -> frozenset[str]:
+    reasons = {expected.reason}
+    if not expected.item_aliases:
+        return frozenset(reasons)
+    pattern = re.compile(re.escape(expected.item), re.IGNORECASE)
+    for alias in expected.item_aliases:
+        reasons.add(pattern.sub(alias, expected.reason))
+    return frozenset(reasons)
+
+
 def checks(run: Run, case: EvalCase) -> dict[str, bool]:
     gold = case.expected
     items = {gold.item, *gold.item_aliases}
-    reasons = {gold.reason.replace(gold.item, item) for item in items}
+    reasons = acceptable_reasons(gold)
     calls = run.calls()
     eligibility = [c for c in calls if c.name == "check_request_eligibility"]
     roles = [c.arguments.get("role") for c in calls if c.name == "get_policy_limits"]
