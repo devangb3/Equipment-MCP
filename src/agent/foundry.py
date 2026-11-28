@@ -69,7 +69,7 @@ class Foundry:
         }
         if self.prompt_cache_key:
             body["prompt_cache_key"] = self.prompt_cache_key
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             try:
                 response = await client.post(
                     self.url, json=body, headers={"api-key": self.key}

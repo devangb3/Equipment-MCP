@@ -98,3 +98,13 @@ exercise correction of a draft that promises shipment.
 ```sh
 uv run --locked pytest -q -s tests/integration/test_agent.py
 ```
+
+## Agent evaluation
+
+The [equipment evaluation suite](evals/README.md) runs the ReAct and Self-Refine loops against isolated employee histories.
+
+```sh
+uv run --locked --env-file .env python -m evals.run run
+```
+
+The command captures and grades each case and saves one JSONL file in `evals/results/`. Open it in the [local results viewer](evals/ui/README.md).

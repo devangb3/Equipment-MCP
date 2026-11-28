@@ -2,14 +2,23 @@
 
 import json
 import sqlite3
+import sys
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
+import httpx
 import pytest
+from mcp import ClientSession
+from mcp.server.fastmcp import FastMCP
 
 from agent.__main__ import run
-from agent.foundry import Item
+from agent.foundry import Foundry, Item
 from agent.refinement import FEEDBACK, REVISE
+from evals import run as eval_run
+from evals.cases import CASES_BY_ID
+from evals.judge import INSTRUCTIONS as JUDGE_INSTRUCTIONS
 
 
 def message(text: str) -> list[Item]:
@@ -152,3 +161,141 @@ async def test_agent_outcome(
         # A recent January issue keeps this denial independent of the run date.
         expected = f"Denied. Laptop refresh interval has not elapsed. Next eligible date: {today.year + 4}-01-01."
     assert (answer, cases) == (expected, expected_cases)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize("passes", [True, False])
+async def test_eval_command_saves_one_graded_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, passes: bool
+) -> None:
+    case = CASES_BY_ID["ledger-a"]
+    model = FixtureModel(case.expected.item, "routine")
+    results = tmp_path / "results"
+    monkeypatch.setattr(eval_run, "RESULTS", results)
+    monkeypatch.setattr(
+        sys, "argv", ["evals.run", "run", "--case", case.id, "--judge-model", "judge"]
+    )
+    monkeypatch.setenv("FOUNDRY_BASE_URL", "https://foundry.example")
+    monkeypatch.setenv("FOUNDRY_MODEL", "agent")
+    monkeypatch.setenv("FOUNDRY_API_KEY", "test-key")
+
+    async def respond(
+        self: Foundry, instructions: str, history: list[Item], tools: list[Item]
+    ) -> list[Item]:
+        if instructions != JUDGE_INSTRUCTIONS:
+            return await model.respond(instructions, history, tools)
+        packet = json.loads(str(history[0]["content"]))
+        evidence = packet["capture"]["final"]
+        rubric = packet["rubric"]
+        verdict = {
+            question: {
+                "passed": passes if question == "response" else True,
+                "evidence": evidence,
+            }
+            for question in rubric["shared"]
+        }
+        verdict["case_rubric"] = {
+            question: {"passed": True, "evidence": evidence}
+            for question in rubric["case"]
+        }
+        return message(json.dumps(verdict))
+
+    monkeypatch.setattr(Foundry, "respond", respond)
+
+    exit_code = 0
+    try:
+        await eval_run.main()
+    except SystemExit as error:
+        exit_code = error.code
+    (artifact,) = results.iterdir()
+    record = json.loads(artifact.read_text())
+    grade = record["grade"]
+
+    assert (
+        artifact.suffix,
+        record["id"],
+        record["trace"][-1],
+        grade["model"],
+        grade["verdict"]["response"]["evidence"],
+        grade["passed"],
+        exit_code,
+    ) == (
+        ".jsonl",
+        case.id,
+        "Reflection: CONFIRM",
+        "judge",
+        record["final"],
+        passes,
+        0 if passes else 1,
+    )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+@pytest.mark.parametrize(
+    "status", [429, 503, None], ids=["rate-limit", "server-error", "timeout"]
+)
+async def test_eval_records_foundry_error_and_continues(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int | None
+) -> None:
+    first = CASES_BY_ID["ledger-b"]
+    second = CASES_BY_ID["ledger-a"]
+    agent = Foundry("https://foundry.example/openai/v1/responses", "agent", "test-key")
+    fixture = FixtureModel(second.expected.item, "routine")
+    fail_next = True
+
+    async def reply(request: httpx.Request) -> httpx.Response:
+        nonlocal fail_next
+        if fail_next:
+            fail_next = False
+            if status is None:
+                raise httpx.ReadTimeout("Foundry request timed out", request=request)
+            return httpx.Response(status)
+        body = json.loads(request.content)
+        items = await fixture.respond(body["instructions"], body["input"], body["tools"])
+        return httpx.Response(200, json={"status": "completed", "output": items})
+
+    client_class = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: client_class(transport=httpx.MockTransport(reply), **kwargs),
+    )
+    connect_session = eval_run.create_connected_server_and_client_session
+
+    @asynccontextmanager
+    async def session_with_direct_errors(server: FastMCP) -> AsyncGenerator[ClientSession]:
+        # Defer the error until after SDK teardown so capture receives it directly.
+        async with connect_session(server) as session:
+            try:
+                yield session
+            except httpx.HTTPError as error:
+                failure = error
+            else:
+                return
+        raise failure
+
+    monkeypatch.setattr(
+        eval_run, "create_connected_server_and_client_session", session_with_direct_errors
+    )
+
+    path = tmp_path / "results.jsonl"
+    with path.open("w", encoding="utf-8") as output:
+        failures = await eval_run.run_cases([first, second], output, agent)
+
+    failed, completed = map(json.loads, path.read_text(encoding="utf-8").splitlines())
+    expected_error = str(status) if status is not None else "Foundry request timed out"
+    assert (
+        failures,
+        failed["id"],
+        expected_error in failed["error"],
+        completed["id"],
+        completed["final"],
+    ) == (
+        1,
+        first.id,
+        True,
+        second.id,
+        "Approved. Laptop refresh interval met.",
+    )

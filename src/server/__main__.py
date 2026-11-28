@@ -7,16 +7,8 @@ from .database import initialize
 from .services import EquipmentRequests
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Run the equipment MCP server over Streamable HTTP."
-    )
-    parser.add_argument("--database", type=Path, default=Path("equipment.sqlite3"))
-    parser.add_argument("--port", type=int, default=43817)
-    args = parser.parse_args()
-    initialize(args.database)
-    requests = EquipmentRequests(args.database)
-    mcp = FastMCP("Equipment requests", port=args.port, stateless_http=True)
+def create_server(requests: EquipmentRequests, port: int = 43817) -> FastMCP:
+    mcp = FastMCP("Equipment requests", port=port, stateless_http=True)
     mcp.tool(
         title="Look up employee equipment",
         description=(
@@ -61,7 +53,19 @@ def main() -> None:
             "by this call."
         ),
     )(requests.submit_request)
-    mcp.run(transport="streamable-http")
+    return mcp
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Run the equipment MCP server over Streamable HTTP."
+    )
+    parser.add_argument("--database", type=Path, default=Path("equipment.sqlite3"))
+    parser.add_argument("--port", type=int, default=43817)
+    args = parser.parse_args()
+    initialize(args.database)
+    requests = EquipmentRequests(args.database)
+    create_server(requests, args.port).run(transport="streamable-http")
 
 
 if __name__ == "__main__":

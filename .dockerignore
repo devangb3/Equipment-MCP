@@ -6,5 +6,7 @@
 !src/**
 !tests/
 !tests/**
+!evals/
+!evals/*.py
 **/__pycache__/
 **/*.egg-info/
