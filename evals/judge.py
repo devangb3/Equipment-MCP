@@ -127,7 +127,7 @@ async def grade(case: EvalCase, run: Run, respond: Respond, model: str) -> Score
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("captures", type=Path, help="JSONL output from evals.run run")
+    parser.add_argument("captures", type=Path, help="JSONL containing evaluation captures")
     parser.add_argument(
         "--model", help="Foundry judge deployment (default: FOUNDRY_MODEL)"
     )

@@ -1,12 +1,15 @@
-"""Validate the gold labels offline or capture real agent trajectories for a judge."""
+"""Run and grade the equipment agent or validate its evaluation fixtures offline."""
 
 import argparse
 import asyncio
 import json
 import sqlite3
+import sys
+from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import get_args
+from typing import TextIO, get_args
 
 from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -21,9 +24,12 @@ from server.models.requests import Eligibility, Intent
 from server.services import EquipmentRequests
 
 from .cases import CASES, CASES_BY_ID
+from .checks import Run
+from .judge import grade
 from .models import EvalCase
 
 PRIOR_REQUEST_ID = 42
+RESULTS = Path(__file__).resolve().parent / "results"
 
 
 def prepare(case: EvalCase, path: Path) -> EquipmentRequests:
@@ -113,29 +119,76 @@ async def capture(
     return result
 
 
-async def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=["validate", "run"])
-    parser.add_argument(
-        "--case", action="append", help="Select one or more case IDs; default is all."
-    )
-    args = parser.parse_args()
-    if missing := set(args.case or ()) - CASES_BY_ID.keys():
-        parser.error(f"Unknown cases: {sorted(missing)}")
-    model = Foundry.from_env() if args.mode != "validate" else None
+async def run_cases(
+    cases: list[EvalCase],
+    output: TextIO,
+    agent: Foundry | None,
+    judge: Foundry | None = None,
+) -> int:
     failures = 0
-    for case in CASES:
-        if args.case and case.id not in args.case:
-            continue
+    for case in cases:
         with TemporaryDirectory() as folder:
             services = prepare(case, Path(folder) / "equipment.sqlite3")
             validate(case, services)
-            if model:
-                result = await capture(case, services, model.respond)
-                failures += int("error" in result)
-                print(json.dumps(result), flush=True)
-            else:
-                print(f"{case.id}: validated")
+            if agent is None:
+                print(f"{case.id}: validated", file=output)
+                continue
+            result = await capture(case, services, agent.respond)
+        if judge is None:
+            failures += int("error" in result)
+        else:
+            score = await grade(
+                case, Run.model_validate(result), judge.respond, judge.model
+            )
+            result["grade"] = score.model_dump(mode="json")
+            failures += int(not score.passed)
+        print(json.dumps(result), file=output, flush=True)
+    return failures
+
+
+async def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("mode", choices=["run", "validate", "capture"])
+    parser.add_argument(
+        "--case", action="append", help="Select one or more case IDs; default is all."
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="New JSONL file for run mode (default: timestamped file in evals/results).",
+    )
+    parser.add_argument(
+        "--judge-model",
+        help="Foundry judge deployment for run mode (default: FOUNDRY_MODEL).",
+    )
+    args = parser.parse_args()
+    if args.mode != "run" and (args.output is not None or args.judge_model is not None):
+        parser.error("--output and --judge-model require run mode.")
+    selected = set(args.case or ())
+    if missing := selected - CASES_BY_ID.keys():
+        parser.error(f"Unknown cases: {sorted(missing)}")
+    cases = [case for case in CASES if not selected or case.id in selected]
+    try:
+        agent = Foundry.from_env() if args.mode != "validate" else None
+    except ValueError as error:
+        parser.error(str(error))
+    if args.mode == "run":
+        assert agent is not None
+        judge = replace(agent, model=args.judge_model) if args.judge_model else agent
+        path = (
+            args.output
+            or RESULTS / f"run-{datetime.now(UTC):%Y-%m-%d_%H%M%S_%fZ}.jsonl"
+        )
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("x", encoding="utf-8") as output:
+                print(f"Saving results to {path}", file=sys.stderr)
+                failures = await run_cases(cases, output, agent, judge)
+        except OSError as error:
+            parser.exit(2, f"{error}\n")
+        print(f"{len(cases) - failures}/{len(cases)} cases passed.", file=sys.stderr)
+    else:
+        failures = await run_cases(cases, sys.stdout, agent)
     if failures:
         raise SystemExit(1)
 

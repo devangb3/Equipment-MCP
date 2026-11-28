@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eval Results | Equipment MCP</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <div><p>Equipment MCP</p><h1>Eval Results</h1></div>
+      </div>
+      <button class="refresh" id="refresh" type="button">Refresh files</button>
+    </div>
+  </header>
+  <main class="workspace">
+    <aside class="files panel" aria-labelledby="files-title">
+      <header class="panel-head">
+        <h2 id="files-title">Eval runs <span class="count" id="file-count" hidden></span></h2>
+        <p class="path">evals/results</p>
+      </header>
+      <div class="scroll" id="files"><p class="empty">Finding files…</p></div>
+    </aside>
+    <div class="viewer panel" id="viewer">
+      <header class="file-head" id="file-head" hidden>
+        <div>
+          <h2 id="filename"></h2>
+          <p class="file-meta" id="file-meta"></p>
+        </div>
+        <button class="outline" id="raw-toggle" type="button" hidden>View raw file</button>
+      </header>
+      <p class="empty viewer-message" id="message" role="status">Finding results…</p>
+      <div class="file-body" id="file-body" hidden>
+        <section class="cases" aria-labelledby="cases-title">
+          <header class="panel-head">
+            <h3 id="cases-title">Cases <span class="count" id="case-count"></span></h3>
+            <div class="controls">
+              <input id="search" type="search" aria-label="Search cases" placeholder="Search cases">
+              <select id="filter" aria-label="Filter by grade" hidden>
+                <option value="all">All grades</option>
+                <option value="passed">Passed</option>
+                <option value="failed">Failed</option>
+                <option value="error">Errors</option>
+              </select>
+            </div>
+          </header>
+          <div class="scroll" id="cases"></div>
+        </section>
+        <section class="record scroll" id="record" aria-label="Case details" tabindex="0"></section>
+      </div>
+      <section class="raw scroll" id="raw" aria-label="Raw file" tabindex="0" hidden><pre id="raw-text"></pre></section>
+    </div>
+  </main>
+</body>
+</html>

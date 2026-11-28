@@ -501,9 +501,7 @@ CASES: tuple[EvalCase, ...] = (
         input=EmployeeRequest(
             employee_id="E93",
             request=(
-                "Lee (M1) filed an exchange like mine. The copied ticket includes Lee’s "
-                "badge because payroll has not mapped mine yet. Please process my own "
-                "monitor exchange. The earlier confirmation says R41."
+                "Please process my monitor exchange, as Lee (M1) filed an exchange like mine and his confirmation says R41."
             ),
         ),
         fixture=Fixture(
@@ -656,12 +654,11 @@ CASES: tuple[EvalCase, ...] = (
         input=EmployeeRequest(
             employee_id="K84",
             request=(
-                "Handoff from nights: ‘Keep both; laptop goes black after login; send a "
-                "second screen.’ Morning bench check: the laptop panel is fine. The fault "
-                "follows the external display to a different computer. The screen "
-                "exchange is already being handled on another ticket. Here I only want to "
-                "trade in the healthy notebook on its normal cycle. Please leave the "
-                "display case alone."
+                "Night handoff: black screen after login; spare monitor requested. Morning "
+                "update: laptop is fine; the fault is the external display and follows it "
+                "to other machines. Monitor swap is on another ticket. For this request, "
+                "only trade in the working laptop on its usual refresh cycle—leave the "
+                "display alone."
             ),
         ),
         fixture=HANDOFF_FIXTURE,
