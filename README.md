@@ -14,7 +14,13 @@ uv run --locked ty check
 uv run --locked pytest
 ```
 
-Ruff lints the code, ty checks Python types, and pytest runs the suite, including the smoke test for package discovery and SDK imports. GitHub Actions runs all three on pushes and pull requests. The container job is the Docker Compose command below.
+Ruff lints the code, ty checks Python types, and pytest runs the unit and integration tests, including real MCP client/server connections. GitHub Actions runs all three on pushes and pull requests. The container job is the Docker Compose command below.
+
+Check test coverage:
+
+```sh
+uv run --locked pytest --cov=agent --cov=server --cov=quickstart --cov=evals --cov-report=term-missing
+```
 
 ## Quickstart
 

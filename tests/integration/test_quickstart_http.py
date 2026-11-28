@@ -2,21 +2,33 @@ import asyncio
 import sys
 
 import pytest
-from mcp import ClientSession
-from mcp.client.streamable_http import streamable_http_client
+
+from quickstart.client import main
 
 
-def test_streamable_http_registers_and_runs_add(free_tcp_port: int) -> None:
+def test_quickstart_cli_connects_and_adds_two_and_three(
+    free_tcp_port: int,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    url = f"http://127.0.0.1:{free_tcp_port}/mcp"
+    monkeypatch.setattr(sys, "argv", ["quickstart.client", "--url", url])
+
     async def check_server() -> None:
         process = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "quickstart.server",
-            "--port", str(free_tcp_port),
+            sys.executable,
+            "-m",
+            "quickstart.server",
+            "--port",
+            str(free_tcp_port),
         )
         try:
             async with asyncio.timeout(15):
                 while process.returncode is None:
                     try:
-                        _, writer = await asyncio.open_connection("127.0.0.1", free_tcp_port)
+                        _, writer = await asyncio.open_connection(
+                            "127.0.0.1", free_tcp_port
+                        )
                     except ConnectionRefusedError:
                         await asyncio.sleep(0.05)
                         continue
@@ -24,28 +36,19 @@ def test_streamable_http_registers_and_runs_add(free_tcp_port: int) -> None:
                     await writer.wait_closed()
                     break
                 else:
-                    pytest.fail(f"HTTP server exited during startup with code {process.returncode}")
+                    pytest.fail(
+                        f"HTTP server exited during startup with code {process.returncode}"
+                    )
 
-                url = f"http://127.0.0.1:{free_tcp_port}/mcp"
-                async with (
-                    streamable_http_client(url) as (reader, writer_stream, _),
-                    ClientSession(reader, writer_stream) as session,
-                ):
-                    info = await session.initialize()
-                    names = [tool.name for tool in (await session.list_tools()).tools]
-                    result = await session.call_tool("add", {"a": 2, "b": 3})
-                    print(
-                        f"Connected to {info.serverInfo.name}. "
-                        f"Registered tools: {names}. add(2, 3): {result.structuredContent}"
-                    )
-                    assert (names, result.isError, result.structuredContent) == (
-                        ["add"],
-                        False,
-                        {"result": 5},
-                    )
+                await asyncio.to_thread(main)
         finally:
             if process.returncode is None:
                 process.terminate()
                 await process.wait()
 
     asyncio.run(check_server())
+
+    assert capsys.readouterr().out == (
+        "Connected to Equipment quickstart. Registered tools: ['add']. "
+        "add(2, 3): {'result': 5}\n"
+    )

@@ -18,31 +18,42 @@ def service(tmp_path: Path) -> EquipmentRequests:
 
 
 @pytest.mark.parametrize(
-    ("employee", "status", "review"),
+    ("employee", "status", "review", "reason", "eligible_on"),
     [
-        ("M1", "approve", None),
-        ("S1", "deny", None),
-        ("X9", "pending_review", "R1"),
+        ("M1", "approve", None, "Laptop refresh interval met", "2026-05-10"),
+        ("S1", "deny", None, "Laptop refresh interval has not elapsed", "2028-05-10"),
+        ("X9", "pending_review", "R1", "Unknown employee: X9", None),
     ],
 )
 def test_submission_history(
-    service: EquipmentRequests, employee: str, status: str, review: str | None
-):
-    receipt = service.submit_request(employee, "Laptop", "  Refresh my laptop.  ")
+    service: EquipmentRequests,
+    employee: str,
+    status: str,
+    review: str | None,
+    reason: str,
+    eligible_on: str | None,
+) -> None:
+    request = "  Refresh my laptop.  "
+
+    receipt = service.submit_request(employee, "Laptop", request)
+
     with connect(service.path) as db:
-        row = db.execute("""SELECT request_id, employee_id, request, item, intent, submitted,
-            status, review_id, policy_reason FROM request_history""").fetchone()
-    assert row == (
-        receipt.request_id,
-        employee,
-        "  Refresh my laptop.  ",
-        "laptop",
-        "routine",
-        "2026-05-10",
-        status,
-        review,
-        receipt.eligibility.reason,
-    )
+        rows = db.execute("""SELECT request_id, employee_id, request, item, intent, submitted,
+            status, review_id, policy_reason, next_eligible_date FROM request_history""").fetchall()
+    assert rows == [
+        (
+            receipt.request_id,
+            employee,
+            request,
+            "laptop",
+            "routine",
+            "2026-05-10",
+            status,
+            review,
+            reason,
+            eligible_on,
+        )
+    ]
 
 
 def test_blank_submission(service: EquipmentRequests):
@@ -115,4 +126,27 @@ def test_existing_review_migration(tmp_path: Path):
 
 def test_unknown_review_outside_sqlite_integer_range(service: EquipmentRequests):
     with pytest.raises(UnknownReview):
-        resolve_review(service.path, "R9223372036854775808", "deny", "Taylor", "Checked roster")
+        resolve_review(
+            service.path, "R9223372036854775808", "deny", "Taylor", "Checked roster"
+        )
+
+
+@pytest.mark.parametrize(
+    ("review_id", "decision", "reviewer", "rationale", "match"),
+    [
+        ("R0", "approve", "Taylor", "Checked roster", "review ID"),
+        ("R1", "hold", "Taylor", "Checked roster", "approve or deny"),
+        ("R1", "approve", " ", "Checked roster", "reviewer"),
+        ("R1", "deny", "Taylor", " ", "rationale"),
+    ],
+)
+def test_resolve_review_rejects_invalid_fields(
+    service: EquipmentRequests,
+    review_id: str,
+    decision: str,
+    reviewer: str,
+    rationale: str,
+    match: str,
+) -> None:
+    with pytest.raises(InvalidField, match=match):
+        resolve_review(service.path, review_id, decision, reviewer, rationale)
