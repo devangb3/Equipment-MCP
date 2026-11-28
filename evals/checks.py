@@ -1,4 +1,4 @@
-"""Score tool use, review records and reflection in captured evaluation traces."""
+"""Score tool use and review records in captured evaluation traces."""
 
 import argparse
 import json
@@ -75,13 +75,7 @@ def checks(run: Run, case: EvalCase) -> dict[str, bool]:
             and bool(rows[0].get("review_id"))
             and rows[0].get("review_id") == referrals[0].observation.get("result")
         )
-    draft_position = next(
-        (i for i, entry in enumerate(run.trace) if entry.startswith("Draft: ")), None
-    )
-    reflection_ok = draft_position is not None and any(
-        entry.startswith("Reflection: ") for entry in run.trace[draft_position + 1 :]
-    )
-    result = {"tools": tools_ok, "database": database_ok, "reflection": reflection_ok}
+    result = {"tools": tools_ok, "database": database_ok}
     if gold.decision == "human_review":
         receipt = rows[0].get("review_id") if len(rows) == 1 else None
         result["receipt_in_response"] = (

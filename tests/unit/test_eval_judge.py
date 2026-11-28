@@ -46,7 +46,7 @@ def referral() -> Run:
         id=case.id,
         input=request,
         final=final,
-        trace=[*trace, f"Draft: {final}", "Reflection: CONFIRM"],
+        trace=trace,
         new_requests=[
             {
                 "employee_id": "E93",
@@ -78,7 +78,6 @@ def verdict(response_passes: bool = True, receipt_passes: bool = True) -> str:
                 "passed": True,
                 "evidence": "Employee lookup for E93 failed.",
             },
-            "reflection": {"passed": True, "evidence": "The trace confirms the draft."},
             "case_rubric": {
                 "submitted_identity": {
                     "passed": True,

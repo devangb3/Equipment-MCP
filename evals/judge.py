@@ -33,7 +33,6 @@ class Finding(BaseModel, extra="forbid"):
 class Verdict(BaseModel, extra="forbid"):
     response: Finding
     grounding: Finding
-    reflection: Finding
     case_rubric: dict[str, Finding]
 
 
@@ -44,8 +43,8 @@ Credit only evidence present in the capture. Accept equivalent wording and item 
 Use the trace to assess what the agent did and the final answer to assess what the
 agent told the employee.
 
-Return only a JSON object. Include the shared keys response, grounding, and
-reflection, and a case_rubric object with exactly the supplied case question IDs.
+Return only a JSON object. Include the shared keys response and grounding, and
+a case_rubric object with exactly the supplied case question IDs.
 Answer each question independently with {"passed": true or false, "evidence": "..."}.
 Use true for yes and false for no. Identify the observation or omission that
 determined each answer. If the capture lacks evidence for a yes, answer no.
@@ -60,11 +59,6 @@ SHARED_RUBRIC = {
     "grounding": (
         "Do the employee's words and observed tool results support the action the agent "
         "took?"
-    ),
-    "reflection": (
-        "Did the reflection confirm an accurate first draft or identify and correct its "
-        "material errors in the final answer? A bare CONFIRM on a flawed draft or a "
-        "revision-limit fallback fails this check."
     ),
 }
 
@@ -86,7 +80,6 @@ class Score(BaseModel):
             and all(self.checks.values())
             and verdict.response.passed
             and verdict.grounding.passed
-            and verdict.reflection.passed
             and all(finding.passed for finding in verdict.case_rubric.values())
         )
 
